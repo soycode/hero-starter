@@ -199,6 +199,89 @@ helpers.findNearestHealthWell = function (gameData) {
     return pathInfoObject.direction;
 };
 
+// Return all valid tiles neighboring a given tile
+helpers.neighbors = function(board, fromTile) {
+    var directions = ['North', 'East', 'South', 'West'];
+    var dft = fromTile.distanceFromTop;
+    var dfl = fromTile.distanceFromLeft;
+    var neighbors = [];
+    for (var i = 0; i < directions.length; i++) {
+        var direction = directions[i];
+        var nextTile = helpers.getTileNearby(board, dft, dfl, direction);
+        if (nextTile) {
+            neighbors.push(nextTile);
+        }
+    }
+    return neighbors;
+};
+
+// Check if a given direction is "safe" to move
+helpers.safetyCheck = function(board, fromTile, direction) {
+  var dft = fromTile.distanceFromTop;
+  var dfl = fromTile.distanceFromLeft;
+  var hero = fromTile;
+  var nextTile = helpers.getTileNearby(board, dft, dfl, direction);
+  if (nextTile) {
+    var neighbors = helpers.neighbors(board, fromTile);
+    // If it's a health well, yes
+    if (nextTile.type === 'HealthWell') {
+      return true;
+    }
+    // If it's an enemy or diamond mine, no
+    if ((nextTile.type === 'Hero' && nextTile.team !== hero.team) ||
+	nextTile.type === 'DiamondMine') {
+	return false;
+    }
+    // If total neighboring enemy health is higher than yours, no
+    for (var i = 0; i < neighbors.length; i++) {
+      var enemyHealth = 0;
+      if (neighbors[i].type === 'Hero' && neighbors[i].team !== hero.team) {
+        enemyHealth += neighbors[i].health;
+      }
+      if (enemyHealth >= hero.health) {
+        return false;
+      }
+    }
+  } else {
+    return false;  // Invalid tile, so rather exisitentially unsafe
+  }
+  return true;
+};
+
+helpers.runAway = function(board, fromTile, direction) {
+  var dft = fromTile.distanceFromTop;
+  var dfl = fromTile.distanceFromLeft;
+  // Try to about face, else go where you can
+  var result;
+  if (nearestHealthWell === 'North') {
+    result = 'South';
+  } else if (nearestHealthWell === 'East') {
+    result = 'West';
+  } else if (nearestHealthWell === 'South') {
+    result = 'North';
+  } else if (nearestHealthWell === 'West') {
+    result = 'East';
+  }
+  var nextTile = helpers.getTileNearby(board, dft, dfl, result);
+  if (nextTile) {
+    return result;
+  } else {
+    // Not a legal tile! For now give up, try to be better in future
+    return 'Stay';
+  }
+};
+
+// Returns "safest" health well, for now fairly simple heuristics
+helpers.findSafestHealthWell = function(gameData) {
+    nearestHealthWell = helpers.findNearestHealthWell(gameData);
+    if (!helpers.safetyCheck(gameData.board, gameData.activeHero, nearestHealthWell)) {
+        // Unsafe, try to about face
+        return helpers.runAway(gameData.board, gameData.activeHero, nearestHealthWell);
+    } else {
+        return nearestHealthWell;
+    }
+};
+
 // Returns the direction of the nearest enemy with lower health
 // (or returns false if there are no accessible enemies that fit this description)
 helpers.findNearestWeakerEnemy = function (gameData) {
